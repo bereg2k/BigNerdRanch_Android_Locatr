@@ -41,6 +41,7 @@ import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.MarkerOptions;
 
 import java.io.IOException;
+import java.lang.ref.WeakReference;
 import java.util.List;
 import java.util.Random;
 
@@ -188,7 +189,7 @@ public class LocatrFragment extends SupportMapFragment {
         LocationServices.FusedLocationApi
                 .requestLocationUpdates(mClient, locationRequest, location -> {
                             Log.i(TAG, "Got a location fix: " + location);
-                            new SearchTask().execute(location);
+                            new SearchTask(this).execute(location);
                         }
                 );
     }
@@ -257,16 +258,24 @@ public class LocatrFragment extends SupportMapFragment {
     }
 
     /**
-     * Asynchronous request to search for a photo on Flickr at desired location
+     * Asynchronous request to search for a photo on Flickr at desired location.
+     * This class is static with WeakReference to the instance of outer class.
+     * This prevents possible memory leaks and allows task to safely access fragment's context.
      */
-    private class SearchTask extends AsyncTask<Location, Void, Void> {
+    private static class SearchTask extends AsyncTask<Location, Void, Void> {
         private GalleryItem mGalleryItem;
         private Bitmap mBitmap;
         private Location mLocation;
 
+        private WeakReference<LocatrFragment> mFragmentReference;
+
+        public SearchTask(LocatrFragment fragment) {
+            mFragmentReference = new WeakReference<>(fragment);
+        }
+
         @Override
         protected void onPreExecute() {
-            mProgressBar.setVisibility(View.VISIBLE);
+            mFragmentReference.get().mProgressBar.setVisibility(View.VISIBLE);
         }
 
         @Override
@@ -279,6 +288,7 @@ public class LocatrFragment extends SupportMapFragment {
                 return null;
             }
 
+            // Getting a random image from all the images returned by request
             mGalleryItem = items.get(new Random().nextInt(items.size()));
 
             try {
@@ -294,12 +304,12 @@ public class LocatrFragment extends SupportMapFragment {
 
         @Override
         protected void onPostExecute(Void result) {
-            mMapImage = mBitmap;
-            mMapItem = mGalleryItem;
-            mCurrentLocation = mLocation;
+            mFragmentReference.get().mMapImage = mBitmap;
+            mFragmentReference.get().mMapItem = mGalleryItem;
+            mFragmentReference.get().mCurrentLocation = mLocation;
 
-            mProgressBar.setVisibility(View.GONE);
-            updateUI();
+            mFragmentReference.get().mProgressBar.setVisibility(View.GONE);
+            mFragmentReference.get().updateUI();
         }
     }
 }
