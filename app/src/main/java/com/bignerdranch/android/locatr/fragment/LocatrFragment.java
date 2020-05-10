@@ -1,6 +1,7 @@
 package com.bignerdranch.android.locatr.fragment;
 
 import android.Manifest;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -255,6 +256,19 @@ public class LocatrFragment extends SupportMapFragment {
         int margin = getResources().getDimensionPixelSize(R.dimen.map_inset_margin);
         CameraUpdate update = CameraUpdateFactory.newLatLngBounds(bounds, margin);
         mMap.animateCamera(update);
+
+        // If user presses on the photo - open browser with full photo page.
+        // Otherwise - default behavior (camera moves to the marker and an info window appears).
+        mMap.setOnMarkerClickListener(marker -> {
+            if (itemMarker.getPosition().latitude == marker.getPosition().latitude &&
+                    itemMarker.getPosition().longitude == marker.getPosition().longitude) {
+                Intent intent = new Intent(Intent.ACTION_VIEW, mMapItem.getPhotoPageUri());
+                startActivity(intent);
+                return true;
+            } else {
+                return false;
+            }
+        });
     }
 
     /**
