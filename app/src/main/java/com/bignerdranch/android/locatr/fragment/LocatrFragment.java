@@ -15,23 +15,30 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ImageView;
+import android.widget.FrameLayout;
 import android.widget.ProgressBar;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 
 import com.bignerdranch.android.locatr.R;
 import com.bignerdranch.android.locatr.model.GalleryItem;
 import com.bignerdranch.android.locatr.util.FlickrFetchr;
 import com.google.android.gms.common.api.GoogleApiClient;
-import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.maps.CameraUpdate;
+import com.google.android.gms.maps.CameraUpdateFactory;
+import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptor;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
+import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.LatLngBounds;
+import com.google.android.gms.maps.model.MarkerOptions;
 
 import java.io.IOException;
 import java.util.List;
@@ -41,14 +48,14 @@ import static androidx.core.content.ContextCompat.getColor;
 
 
 /**
- * Main fragment to host images found by current location
+ * Main fragment to host a Google Map with current location and images from Flickr found nearby.
  * <p>
  * For location mocker:
  * Get Mock Walker APK at
  * <a href=https://www.bignerdranch.com/solutions/MockWalker.apk>
  * https://www.bignerdranch.com/solutions/MockWalker.apk</a>
  */
-public class LocatrFragment extends Fragment {
+public class LocatrFragment extends SupportMapFragment {
     private static final String TAG = LocatrFragment.class.getSimpleName();
 
     private static final String[] LOCATION_PERMISSIONS = new String[]{
@@ -60,11 +67,14 @@ public class LocatrFragment extends Fragment {
     private static final int REQUEST_RATIONALE = 1;
     private static final String RATIONALE_DIALOG_TAG = "RationaleFragment";
 
-    private ImageView mImageView;
     private ProgressBar mProgressBar;
     private GoogleApiClient mClient;
+    private GoogleMap mMap;
+    private Bitmap mMapImage;
+    private GalleryItem mMapItem;
+    private Location mCurrentLocation;
 
-    public static Fragment newInstance() {
+    public static SupportMapFragment newInstance() {
         return new LocatrFragment();
     }
 
@@ -73,6 +83,7 @@ public class LocatrFragment extends Fragment {
         super.onCreate(savedInstanceState);
         setHasOptionsMenu(true);
 
+        // Initialize a Google API client to communicate with Google Services (Location, Maps)
         mClient = new GoogleApiClient.Builder(getActivity())
                 .addApi(LocationServices.API)
                 .addConnectionCallbacks(new GoogleApiClient.ConnectionCallbacks() {
@@ -88,16 +99,23 @@ public class LocatrFragment extends Fragment {
                 })
                 .build();
 
+        getMapAsync(googleMap -> {
+            mMap = googleMap;
+            updateUI();
+        });
+
     }
 
-    @Nullable
     @Override
-    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-        View view = inflater.inflate(R.layout.fragment_locatr, container, false);
+    public View onCreateView(LayoutInflater layoutInflater, ViewGroup viewGroup, Bundle bundle) {
+        View view = super.onCreateView(layoutInflater, viewGroup, bundle);
 
-        mImageView = view.findViewById(R.id.image);
+        // Adding my custom layout with Progress Bar to the Map's fragment layout
+        FrameLayout frameLayout = (FrameLayout) view;
+        View myView = layoutInflater.inflate(R.layout.fragment_locatr, viewGroup, false);
+        frameLayout.addView(myView);
 
-        mProgressBar = view.findViewById(R.id.progress_bar);
+        mProgressBar = myView.findViewById(R.id.progress_bar);
         mProgressBar.getIndeterminateDrawable().setColorFilter(
                 getColor(getContext(), R.color.colorPrimary), PorterDuff.Mode.SRC_IN);
 
@@ -168,13 +186,11 @@ public class LocatrFragment extends Fragment {
                 .setInterval(0);
 
         LocationServices.FusedLocationApi
-                .requestLocationUpdates(mClient, locationRequest, new LocationListener() {
-                    @Override
-                    public void onLocationChanged(Location location) {
-                        Log.i(TAG, "Got a location fix: " + location);
-                        new SearchTask().execute(location);
-                    }
-                });
+                .requestLocationUpdates(mClient, locationRequest, location -> {
+                            Log.i(TAG, "Got a location fix: " + location);
+                            new SearchTask().execute(location);
+                        }
+                );
     }
 
     /**
@@ -207,11 +223,46 @@ public class LocatrFragment extends Fragment {
     }
 
     /**
+     * Updating map and showing a zoomed-in version of it with 2 "points":
+     * <p> - current location </p>
+     * <p> - thumbnail of image at its location. </p>
+     */
+    private void updateUI() {
+        if (mMap == null || mMapImage == null) {
+            return;
+        }
+
+        LatLng itemPoint = new LatLng(mMapItem.getLat(), mMapItem.getLon());
+        LatLng myPoint = new LatLng(mCurrentLocation.getLatitude(), mCurrentLocation.getLongitude());
+
+        BitmapDescriptor itemBitmap = BitmapDescriptorFactory.fromBitmap(mMapImage);
+        MarkerOptions itemMarker = new MarkerOptions()
+                .position(itemPoint)
+                .icon(itemBitmap);
+        MarkerOptions myMarker = new MarkerOptions()
+                .position(myPoint);
+
+        mMap.clear();
+        mMap.addMarker(itemMarker);
+        mMap.addMarker(myMarker);
+
+        LatLngBounds bounds = new LatLngBounds.Builder()
+                .include(itemPoint)
+                .include(myPoint)
+                .build();
+
+        int margin = getResources().getDimensionPixelSize(R.dimen.map_inset_margin);
+        CameraUpdate update = CameraUpdateFactory.newLatLngBounds(bounds, margin);
+        mMap.animateCamera(update);
+    }
+
+    /**
      * Asynchronous request to search for a photo on Flickr at desired location
      */
     private class SearchTask extends AsyncTask<Location, Void, Void> {
         private GalleryItem mGalleryItem;
         private Bitmap mBitmap;
+        private Location mLocation;
 
         @Override
         protected void onPreExecute() {
@@ -220,6 +271,7 @@ public class LocatrFragment extends Fragment {
 
         @Override
         protected Void doInBackground(Location... locations) {
+            mLocation = locations[0];
             List<GalleryItem> items = new FlickrFetchr().searchPhotos(locations[0]);
 
             if (items.isEmpty()) {
@@ -242,8 +294,12 @@ public class LocatrFragment extends Fragment {
 
         @Override
         protected void onPostExecute(Void result) {
+            mMapImage = mBitmap;
+            mMapItem = mGalleryItem;
+            mCurrentLocation = mLocation;
+
             mProgressBar.setVisibility(View.GONE);
-            mImageView.setImageBitmap(mBitmap);
+            updateUI();
         }
     }
 }

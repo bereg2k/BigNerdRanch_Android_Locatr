@@ -35,13 +35,15 @@ public class FlickrFetchr {
     private static final String FLICKR_REST_API_URL = "https://www.flickr.com/services/rest/";
     private static final String FETCH_RECENTS_METHOD = "flickr.photos.getRecent";
     private static final String SEARCH_METHOD = "flickr.photos.search";
+
+    private static final String EXTRAS = "url_s,geo";
     private static final Uri ENDPOINT = Uri
             .parse(FLICKR_REST_API_URL)
             .buildUpon()
             .appendQueryParameter("api_key", API_KEY)
             .appendQueryParameter("format", "json")
             .appendQueryParameter("nojsoncallback", "1")
-            .appendQueryParameter("extras", "url_s")
+            .appendQueryParameter("extras", EXTRAS)
             .build();
 
     /**
@@ -226,6 +228,8 @@ public class FlickrFetchr {
             item.setId(photoJsonObject.getString("id"));
             item.setCaption(photoJsonObject.getString("title"));
             item.setUrl(photoJsonObject.getString("url_s"));
+            item.setLat(photoJsonObject.getDouble("lat"));
+            item.setLon(photoJsonObject.getDouble("lon"));
 
             items.add(item);
         }

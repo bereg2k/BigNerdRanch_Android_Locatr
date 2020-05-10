@@ -22,6 +22,10 @@ public class GalleryItem {
     private String mUrlBig;
     @SerializedName("owner")
     private String mOwner;
+    @SerializedName("latitude")
+    private double mLat;
+    @SerializedName("longitude")
+    private double mLon;
 
     public String getCaption() {
         return mCaption;
@@ -43,6 +47,14 @@ public class GalleryItem {
         return mOwner;
     }
 
+    public double getLat() {
+        return mLat;
+    }
+
+    public double getLon() {
+        return mLon;
+    }
+
     public void setCaption(String caption) {
         mCaption = caption;
     }
@@ -61,6 +73,14 @@ public class GalleryItem {
 
     public void setOwner(String owner) {
         mOwner = owner;
+    }
+
+    public void setLat(double lat) {
+        mLat = lat;
+    }
+
+    public void setLon(double lon) {
+        mLon = lon;
     }
 
     @NonNull
